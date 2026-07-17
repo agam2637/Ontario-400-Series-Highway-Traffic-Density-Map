@@ -2,7 +2,7 @@
 
 An interactive map of 2021 average annual daily traffic (AADT) across Ontario's busiest highway corridors — Highways 400, 401, 403, 404, 410, 427, and the QEW — built with ArcGIS Pro, Python, and Leaflet.js.
 
-**[View the live map →](https://yourusername.github.io/ontario-400-series-highway-traffic-density-map/)**
+**[View the live map →](https://agam2637.github.io/Ontario-400-Series-Highway-Traffic-Density-Map/)**
 
 ---
 
