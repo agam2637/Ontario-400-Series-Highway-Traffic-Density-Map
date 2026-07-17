@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ontario 400 Series Highway Traffic Density Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --asphalt-1: #14171a;
+    --asphalt-2: #1e2226;
+    --panel-line: rgba(255,255,255,0.08);
+    --hwy-green: #1c5c3e;
+    --hwy-green-light: #2f8a5c;
+    --text-primary: #f2f1ec;
+    --text-secondary: #9aa39c;
+    --low: #F9E24B;
+    --medium: #F5A623;
+    --high: #E0342A;
+    --ramp: #8a8f94;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--asphalt-1);
+    font-family: 'IBM Plex Sans', sans-serif;
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    background: var(--asphalt-1);
+  }
+
+  .leaflet-container {
+    background: var(--asphalt-1);
+  }
+
+  /* Signature: highway shield-shaped title plaque, top-left */
+  .hud-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    max-width: 340px;
+    background: var(--asphalt-2);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    overflow: hidden;
+  }
+
+  .hud-header {
+    background: var(--hwy-green);
+    padding: 14px 18px 12px;
+    border-bottom: 3px solid var(--hwy-green-light);
+  }
+
+  .hud-eyebrow {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.75);
+    margin: 0 0 2px;
+  }
+
+  .hud-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+    line-height: 1.05;
+    margin: 0;
+    color: #ffffff;
+  }
+
+  .hud-body {
+    padding: 14px 18px 16px;
+  }
+
+  .hud-desc {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0 0 14px;
+  }
+
+  .legend-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+
+  .legend-swatch {
+    width: 26px;
+    height: 6px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .legend-label { flex: 1; }
+  .legend-range {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hud-footer {
+    border-top: 1px solid var(--panel-line);
+    padding: 10px 18px 12px;
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .hud-footer a { color: var(--hwy-green-light); text-decoration: none; }
+  .hud-footer a:hover { text-decoration: underline; }
+
+  /* Highway selector panel - top right */
+  .hwy-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    width: 300px;
+    background: var(--asphalt-2);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  }
+
+  .hwy-panel-header {
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+
+  .hwy-panel-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin: 0 0 10px;
+  }
+
+  .shield-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .shield-btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: #2a2f34;
+    border: 1.5px solid var(--panel-line);
+    border-radius: 5px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+
+  .shield-btn:hover {
+    background: #343a40;
+    border-color: var(--hwy-green-light);
+  }
+
+  .shield-btn.active {
+    background: var(--hwy-green);
+    border-color: var(--hwy-green-light);
+    color: #ffffff;
+  }
+
+  .hwy-detail {
+    padding: 14px 16px 16px;
+    display: none;
+  }
+
+  .hwy-detail.visible { display: block; }
+
+  .hwy-detail-empty {
+    padding: 14px 16px 16px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .hwy-detail-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: #ffffff;
+    margin: 0 0 10px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--panel-line);
+    font-size: 12.5px;
+  }
+  .stat-row:last-of-type { border-bottom: none; }
+  .stat-label { color: var(--text-secondary); }
+  .stat-value { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .point-note {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    text-align: right;
+    max-width: 170px;
+  }
+
+  .cities-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--panel-line);
+  }
+
+  .cities-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .cities-list {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #d6d9d3;
+    max-height: 130px;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 900px) {
+    .hwy-panel { width: calc(100vw - 40px); left: 20px; right: 20px; top: auto; bottom: 20px; }
+  }
+
+  /* Collapse toggle for mobile */
+  .hud-collapse-btn {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .hud-panel { max-width: calc(100vw - 32px); }
+    .hud-title { font-size: 22px; }
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--asphalt-2);
+    color: var(--text-primary);
+    border-radius: 6px;
+  }
+  .leaflet-popup-tip { background: var(--asphalt-2); }
+  .leaflet-popup-content { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; margin: 12px 14px; }
+  .popup-route {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+  .popup-row { display: flex; justify-content: space-between; gap: 16px; padding: 2px 0; }
+  .popup-row span:first-child { color: var(--text-secondary); }
+
+  #loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--asphalt-1);
+    color: var(--text-secondary);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 18px;
+    letter-spacing: 0.05em;
+    z-index: 2000;
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="loading">LOADING HIGHWAY DATA…</div>
+
+<div class="hud-panel">
+  <div class="hud-header">
+    <p class="hud-eyebrow">Ontario · 400 Series &amp; QEW</p>
+    <h1 class="hud-title">Traffic Density Map</h1>
+  </div>
+  <div class="hud-body">
+    <p class="hud-desc">Average annual daily traffic (2021) along Highways 400, 401, 403, 404, 410, 427, and the QEW, based on MTO monitoring stations. Click any stretch for details.</p>
+    <p class="legend-title">Traffic Volume</p>
+    <div class="legend-row"><div class="legend-swatch" style="background:var(--high)"></div><div class="legend-label">High</div><div class="legend-range">143,200+</div></div>
+    <div class="legend-row"><div class="legend-swatch" style="background:var(--medium)"></div><div class="legend-label">Medium</div><div class="legend-range">41,200–143,200</div></div>
+    <div class="legend-row"><div class="legend-swatch" style="background:var(--low)"></div><div class="legend-label">Low</div><div class="legend-range">&lt;41,200</div></div>
+    <div class="legend-row"><div class="legend-swatch" style="background:var(--ramp); height:3px;"></div><div class="legend-label">Interchange ramp</div><div class="legend-range">—</div></div>
+  </div>
+  <div class="hud-footer">
+    AADT data: Ontario Ministry of Transportation. Road network: Ontario Road Network (ORN) Composite Service, Ontario GeoHub.
+  </div>
+</div>
+
+<div class="hwy-panel">
+  <div class="hwy-panel-header">
+    <p class="hwy-panel-title">Highway Overview</p>
+    <div class="shield-row" id="shieldRow"></div>
+  </div>
+  <div class="hwy-detail-empty" id="hwyEmpty">Select a highway above to see its stats.</div>
+  <div class="hwy-detail" id="hwyDetail"></div>
+</div>
+
+<script>window.HIGHWAY_STATS = {"400": {"cities": ["City of Barrie", "City of Toronto", "City of Vaughan", "Town of Bradford West Gwillimbury", "Town of Innisfil", "Town of Parry Sound", "Township of Georgian Bay", "Township of King", "Township of McDougall", "Township of Oro-Medonte", "Township of Seguin", "Township of Severn", "Township of Springwater", "Township of Tay", "Wahta Mohawk Territory"], "total_length_km": 226.2, "avg_aadt": 77823, "busiest": {"aadt": 424600.0, "desc": "HWY 400 IC-359-NORTH YORK"}, "quietest": {"aadt": 8100.0, "desc": "GEORGIAN BAY RD - CROOKED BAY RD IC 168"}, "interchange_count": 356}, "401": {"cities": ["City of Belleville", "City of Brockville", "City of Cambridge", "City of Cornwall", "City of Kingston", "City of London", "City of Mississauga", "City of Oshawa", "City of Pickering", "City of Quinte West", "City of Toronto", "City of Windsor", "City of Woodstock", "Municipality of Brighton", "Municipality of Chatham-Kent", "Municipality of Clarington", "Municipality of Dutton/Dunwich", "Municipality of Lakeshore", "Municipality of Middlesex Centre", "Municipality of Port Hope", "Municipality of South Dundas", "Municipality of Thames Centre", "Municipality of West Elgin", "Town of Ajax", "Town of Cobourg", "Town of Greater Napanee", "Town of Halton Hills", "Town of Ingersoll", "Town of LaSalle", "Town of Milton", "Town of Prescott", "Town of Tecumseh", "Town of Whitby", "Township of Alnwick/Haldimand", "Township of Augusta", "Township of Blandford-Blenheim", "Township of Cramahe", "Township of Edwardsburgh/Cardinal", "Township of Elizabethtown-Kitley", "Township of Front of Yonge", "Township of Hamilton", "Township of Leeds and the Thousand Islands", "Township of Loyalist", "Township of North Dumfries", "Township of Norwich", "Township of Puslinch", "Township of South Glengarry", "Township of South Stormont", "Township of South-West Oxford", "Township of Southwold", "Township of Tyendinaga"], "total_length_km": 892.1, "avg_aadt": 123341, "busiest": {"aadt": 480900.0, "desc": "HWY 427 IC 352"}, "quietest": {"aadt": 15100.0, "desc": "HWY 16 IC-721B-JOHNSTOWN"}, "interchange_count": 1180}, "403": {"cities": ["City of Brantford", "City of Burlington", "City of Hamilton", "City of Mississauga", "City of Woodstock", "County of Brant", "Town of Oakville", "Township of Norwich"], "total_length_km": 126.9, "avg_aadt": 134908, "busiest": {"aadt": 245100.0, "desc": "HWY 401 & HWY 410 IC-MISSISSAUGA"}, "quietest": {"aadt": 18600.0, "desc": "OXFORD RD 55 UP IC-6"}, "interchange_count": 219}, "404": {"cities": ["City of Markham", "City of Toronto", "Town of East Gwillimbury", "Town of Whitchurch-Stouffville"], "total_length_km": 50.5, "avg_aadt": 143094, "busiest": {"aadt": 354300.0, "desc": "HWY 401 IC 56-DON VALLEY PKWY"}, "quietest": {"aadt": 30200.0, "desc": "QUEENSVILLE SD RD( REG. RD 77)"}, "interchange_count": 140}, "410": {"cities": ["City of Brampton", "City of Mississauga", "Town of Caledon"], "total_length_km": 21.9, "avg_aadt": 176438, "busiest": {"aadt": 245100.0, "desc": "HWY 401 & HWY 410 IC-MISSISSAUGA"}, "quietest": {"aadt": 86900.0, "desc": "MAYFIELD RD IC"}, "interchange_count": 81}, "427": {"cities": ["City of Mississauga", "City of Toronto", "City of Vaughan"], "total_length_km": 29.2, "avg_aadt": 256630, "busiest": {"aadt": 480900.0, "desc": "HWY 427 IC 352"}, "quietest": {"aadt": 94600.0, "desc": "HWY 407 IC OVERPASS"}, "interchange_count": 173}, "QEW": {"cities": ["City of Burlington", "City of Hamilton", "City of Mississauga", "City of Niagara Falls", "City of St. Catharines", "City of Toronto", "Town of Fort Erie", "Town of Grimsby", "Town of Lincoln", "Town of Niagara-On-The-Lake", "Town of Oakville"], "total_length_km": 139.2, "avg_aadt": 125843, "busiest": {"aadt": 421800.0, "desc": "QEW IC * START OF COMPLEX FRWY"}, "quietest": {"aadt": 14800.0, "desc": "FORT ERIE-GODERICH ST-PEACE BRIDGE PLAZA"}, "interchange_count": 445}};</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  const map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([43.9, -79.6], 8);
+
+  // Dark basemap to match the asphalt theme
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19
+  }).addTo(map);
+
+  const TIER_COLORS = {
+    'High': '#E0342A',
+    'Medium': '#F5A623',
+    'Low': '#F9E24B',
+    'Ramp': '#8a8f94',
+    'No Data': '#555555'
+  };
+
+  function styleFeature(feature) {
+    const tier = feature.properties.traffic_tier || feature.properties.TRAFFIC_TIER || 'No Data';
+    const isRamp = tier === 'Ramp';
+    return {
+      color: TIER_COLORS[tier] || '#777777',
+      weight: isRamp ? 1.5 : 3.5,
+      opacity: isRamp ? 0.7 : 0.9
+    };
+  }
+
+  function getProp(props, ...names) {
+    for (const n of names) {
+      if (props[n] !== undefined && props[n] !== null) return props[n];
+    }
+    return null;
+  }
+
+  function onEachFeature(feature, layer) {
+    const p = feature.properties;
+    const route = getProp(p, 'ROUTE_NUMBER', 'HWY', 'Hwy No') || '—';
+    const tier = getProp(p, 'traffic_tier', 'TRAFFIC_TIER') || 'No Data';
+    const aadt = getProp(p, 'AADT_2021_v2', 'AADT_2021', 'AADT');
+    const segType = getProp(p, 'segment_type', 'SEGMENT_TYPE') || '—';
+
+    const aadtDisplay = aadt ? Number(aadt).toLocaleString() : 'N/A';
+
+    layer.bindPopup(`
+      <div class="popup-route">Highway ${route}</div>
+      <div class="popup-row"><span>Type</span><span>${segType}</span></div>
+      <div class="popup-row"><span>Tier</span><span>${tier}</span></div>
+      <div class="popup-row"><span>AADT (2021)</span><span>${aadtDisplay}</span></div>
+    `);
+
+    layer.on('mouseover', function () {
+      this.setStyle({ weight: (feature.properties.traffic_tier === 'Ramp' ? 3 : 6), opacity: 1 });
+    });
+    layer.on('mouseout', function () {
+      geojsonLayer.resetStyle(this);
+    });
+  }
+
+  let geojsonLayer;
+
+  function renderData(data) {
+    geojsonLayer = L.geoJSON(data, {
+      style: styleFeature,
+      onEachFeature: onEachFeature
+    }).addTo(map);
+
+    try {
+      map.fitBounds(geojsonLayer.getBounds(), { padding: [40, 40] });
+    } catch (e) { /* keep default view if bounds fail */ }
+
+    document.getElementById('loading').style.display = 'none';
+  }
+
+  if (window.EMBEDDED_HIGHWAY_DATA) {
+    // Data embedded directly in this file - no fetch needed, works via double-click
+    renderData(window.EMBEDDED_HIGHWAY_DATA);
+  } else {
+    // Fallback: try loading an external file (requires a local server, not file://)
+    fetch('highways_classified.geojson')
+      .then(res => {
+        if (!res.ok) throw new Error('File not found');
+        return res.json();
+      })
+      .then(renderData)
+      .catch(err => {
+        document.getElementById('loading').innerHTML =
+          'COULD NOT LOAD MAP DATA<br><span style="font-size:13px;font-family:\'IBM Plex Sans\',sans-serif;color:#9aa39c;">Make sure the .geojson file is in the same folder as this HTML file, or use the embedded-data version instead.</span>';
+        console.error(err);
+      });
+  }
+
+  // ---- Highway Overview panel ----
+  const HWY_ORDER = ['400', '401', '403', '404', '410', '427', 'QEW'];
+
+  function fmtNum(n) {
+    return n === null || n === undefined ? 'N/A' : Math.round(n).toLocaleString();
+  }
+
+  function shortDesc(desc) {
+    if (!desc) return 'Unknown location';
+    // Trim overly long MTO location strings for compact display
+    return desc.length > 42 ? desc.slice(0, 40) + '…' : desc;
+  }
+
+  function renderHighwayDetail(hwy) {
+    const stats = (window.HIGHWAY_STATS || {})[hwy];
+    const detailEl = document.getElementById('hwyDetail');
+    const emptyEl = document.getElementById('hwyEmpty');
+
+    if (!stats) {
+      detailEl.classList.remove('visible');
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    detailEl.classList.add('visible');
+
+    detailEl.innerHTML = `
+      <h2 class="hwy-detail-title">Highway ${hwy}</h2>
+      <div class="stat-row"><span class="stat-label">Total length</span><span class="stat-value">${stats.total_length_km} km</span></div>
+      <div class="stat-row"><span class="stat-label">Interchanges</span><span class="stat-value">${stats.interchange_count}</span></div>
+      <div class="stat-row"><span class="stat-label">Average AADT (2021)</span><span class="stat-value">${fmtNum(stats.avg_aadt)}</span></div>
+      <div class="stat-row"><span class="stat-label">Busiest point</span><span class="stat-value point-note">${fmtNum(stats.busiest.aadt)}<br>${shortDesc(stats.busiest.desc)}</span></div>
+      <div class="stat-row"><span class="stat-label">Quietest point</span><span class="stat-value point-note">${fmtNum(stats.quietest.aadt)}<br>${shortDesc(stats.quietest.desc)}</span></div>
+      <div class="cities-section">
+        <div class="cities-label">Runs through (${stats.cities.length})</div>
+        <div class="cities-list">${stats.cities.join(', ')}</div>
+      </div>
+    `;
+  }
+
+  function buildShieldRow() {
+    const row = document.getElementById('shieldRow');
+    HWY_ORDER.forEach(hwy => {
+      const btn = document.createElement('button');
+      btn.className = 'shield-btn';
+      btn.textContent = hwy;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.shield-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderHighwayDetail(hwy);
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  buildShieldRow();
+</script>
+
+</body>
+</html>
